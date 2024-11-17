@@ -2,6 +2,9 @@ package Homeworks.chatbot;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 public class UserHandler extends Thread {
     Socket userSocket;
@@ -9,6 +12,21 @@ public class UserHandler extends Thread {
     public UserHandler(Socket userSocket){
         this.userSocket = userSocket;
     }
+    public static void main(String[] args) {
+
+        var a = IntStream.range(0, 10)
+                .mapToObj(i -> i)
+
+                .flatMap(i ->
+                        LongStream.range(0, i).mapToObj(j -> j)
+                )
+                .peek(l -> System.out.println(l))
+                .collect(Collectors.groupingBy(i-> i, Collectors.counting()));
+
+
+    }
+
+
 
     @Override
     public void run() {
