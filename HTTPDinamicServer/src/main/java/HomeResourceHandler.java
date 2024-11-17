@@ -4,6 +4,9 @@ public class HomeResourceHandler implements IResourceHandler {
     @Override
     public ResponseContent handle(Map<String, String> params) {
         ResponseContent responseContent = new ResponseContent();
+
+
+
         responseContent.setMimeType("text/html; charset=utf-8");
 
         String content = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\"\n" +

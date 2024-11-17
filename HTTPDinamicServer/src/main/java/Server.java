@@ -1,6 +1,8 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URLConnection;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,35 +42,58 @@ public class Server {
                 System.out.println(headerLine);
             }
 
+
             // Динамическая обработка
             // К этому моменту надо сформировать параметры
             ResponseContent responseContent = null;
             IResourceHandler handler = resources.get(uri);
+
             if (handler != null) {
                 responseContent = handler.handle(null);
             } else {
-                // пытаемся найти файл
+                responseContent = findFile(clientSocket, uri.substring(1));
             }
-
-            String[] response = {
-                    "HTTP/1.1 200 OK\r\n",
-                    "Server: NewSuperServer\r\n",
-                    "Content-Type: " + responseContent.getMimeType() + "\r\n",
-                    "Content-Length: " + responseContent.getContent().length + "\r\n",
-                    "\r\n"};
-
-            for (String responseHeaderLine : response) {
-                clientSocket.getOutputStream().write(responseHeaderLine.getBytes());
-                clientSocket.getOutputStream().flush();
+            if (responseContent != null) {
+                success(responseContent, clientSocket);
+            } else {
+                code404(clientSocket);
             }
-
-            clientSocket.getOutputStream().write(responseContent.getContent());
-            clientSocket.getOutputStream().flush();
-
-            clientSocket.close();
             server.close();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+    public static ResponseContent findFile(Socket clientSocket, String uri) throws IOException {
+        File file = new File(ROOT_DIRECTORY + uri);
+        byte[] buffer = Files.readAllBytes(file.toPath());
+        String mimeType = URLConnection.guessContentTypeFromName(file.getName());
+        return new ResponseContent(mimeType, buffer);
+    }
+    public static void code404(Socket clientSocket) throws IOException {
+        String[] response = {"HTTP/1.1 404 Not Found\r\n", "Server: NewSuperServer\r\n", "\r\n"};
+
+        for (String responseHeaderLine : response) {
+            clientSocket.getOutputStream().write(responseHeaderLine.getBytes());
+            clientSocket.getOutputStream().flush();
+        }
+        clientSocket.close();
+    }
+    public static void success(ResponseContent responseContent, Socket clientSocket)
+            throws IOException {
+        String[] response = {
+                "HTTP/1.1 200 OK\r\n",
+                "Server: NewSuperServer\r\n",
+                "Content-Type: " + responseContent.getMimeType() + "\r\n",
+                "Content-Length: " + responseContent.getContent().length + "\r\n",
+                "\r\n"};
+
+        for (String responseHeaderLine : response) {
+            clientSocket.getOutputStream().write(responseHeaderLine.getBytes());
+            clientSocket.getOutputStream().flush();
+        }
+
+        clientSocket.getOutputStream().write(responseContent.getContent());
+        clientSocket.getOutputStream().flush();
+        clientSocket.close();
     }
 }
