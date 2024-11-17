@@ -6,9 +6,9 @@ import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 
-public class Server {
+public class DinamicServer {
     public static final int SERVER_PORT = 5000;
-    public static final String ROOT_DIRECTORY = "html/";
+    public static final String ROOT_DIRECTORY = "docs/";
 
     public static void main(String[] args) {
         try {
@@ -17,6 +17,8 @@ public class Server {
             Map<String, IResourceHandler> resources = new HashMap<>();
 
             resources.put("/home", new HomeResourceHandler());
+            resources.put("/cat", new CatResourceHandler());
+            resources.put("/example", new ExampleResourceHandler());
 
             ServerSocket server = new ServerSocket(SERVER_PORT);
             // wait client connection
@@ -26,7 +28,6 @@ public class Server {
             Socket clientSocket = server.accept();
 
             InputStream inputStream = clientSocket.getInputStream();
-
             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
             String headerLine = bufferedReader.readLine();
 
@@ -34,31 +35,42 @@ public class Server {
 
             String method = firstLine[0];
             String uri = firstLine[1];
-            String httpVers = firstLine[2];
+            String httpVersion = firstLine[2];
+            Map<String, String> params = new HashMap<>();
 
-            System.out.println(method + " " + uri + " " + httpVers);
-            while (headerLine != null && !headerLine.equals("")) {
+            params.put("method", method);
+            params.put("uri", uri);
+            params.put("httpVersion", httpVersion);
+
+            while (!headerLine.isEmpty()) {
                 headerLine = bufferedReader.readLine();
-                System.out.println(headerLine);
+                String[] param = headerLine.split(":");
+                params.put(param[0], param.length > 1 ? param[1] : "");
             }
+            if (!httpVersion.equals("HTTP/1.1")) {
+                String[] response = {"HTTP/1.1 505 HTTP Version Not Supported\r\n","Server: NewSuperServer\r\n","\r\n"};
 
-
-            // Динамическая обработка
-            // К этому моменту надо сформировать параметры
-            ResponseContent responseContent = null;
-            IResourceHandler handler = resources.get(uri);
-
-            if (handler != null) {
-                responseContent = handler.handle(null);
+                for (String responseHeaderLine : response) {
+                    clientSocket.getOutputStream().write(responseHeaderLine.getBytes());
+                    clientSocket.getOutputStream().flush();
+                }
+                clientSocket.close();
             } else {
-                responseContent = findFile(clientSocket, uri.substring(1));
+                ResponseContent responseContent = null;
+                IResourceHandler handler = resources.get(uri);
+
+                if (handler != null) {
+                    responseContent = handler.handle(params);
+                } else {
+                    responseContent = findFile(clientSocket, uri.substring(1));
+                }
+                if (responseContent != null) {
+                    success(responseContent, clientSocket);
+                } else {
+                    code404(clientSocket);
+                }
+                server.close();
             }
-            if (responseContent != null) {
-                success(responseContent, clientSocket);
-            } else {
-                code404(clientSocket);
-            }
-            server.close();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

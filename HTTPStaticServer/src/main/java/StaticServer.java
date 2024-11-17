@@ -2,13 +2,14 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URLConnection;
 import java.nio.file.Files;
 
-public class Server {
+public class StaticServer {
     public static final int SERVER_PORT = 5000;
-    public static final String ROOT_DIRECTORY = "html/";
+    public static final String ROOT_DIRECTORY = "docs/";
 
-    public static void main (String[] args){
+    public static void main(String[] args){
         try {
             ServerSocket server = new ServerSocket(SERVER_PORT);
             // wait client connection
@@ -29,15 +30,15 @@ public class Server {
 
             String method = firstLine[0];
             String uri = firstLine[1].substring(1);
-            String httpVers = firstLine[2];
+            String httpVersion = firstLine[2];
 
-            System.out.println(method + " " + uri + " " + httpVers);
-            while (headerLine != null && !headerLine.equals("")) {
+            System.out.println(headerLine);
+            while (headerLine != null && !headerLine.isEmpty()) {
                 headerLine = bufferedReader.readLine();
                 System.out.println(headerLine);
             }
 
-            if (!httpVers.equals("HTTP/1.1")) {
+            if (!httpVersion.equals("HTTP/1.1")) {
                 String[] response = {"HTTP/1.1 505 HTTP Version Not Supported\r\n","Server: NewSuperServer\r\n","\r\n"};
 
                 for (String responseHeaderLine : response) {
@@ -64,7 +65,7 @@ public class Server {
                         String[] response = {
                                 "HTTP/1.1 200 OK\r\n",
                                 "Server: NewSuperServer\r\n",
-                                "Content-Type: text/html; charset=utf-8\r\n",
+                                "Content-Type: " + URLConnection.guessContentTypeFromName(file.getName()) + "\r\n",
                                 "Content-Length: " + buffer.length + "\r\n",
                                 "\r\n"};
 
@@ -78,7 +79,11 @@ public class Server {
 
                         clientSocket.close();
                     } catch (IOException e) {
-                        // внутренняя ошибка сервера
+                        String[] response = {"HTTP/1.1 505 Internal Server Error\r\n", "Server: NewSuperServer\r\n", "\r\n"};
+                        for (String responseHeaderLine : response) {
+                            clientSocket.getOutputStream().write(responseHeaderLine.getBytes());
+                            clientSocket.getOutputStream().flush();
+                        }
                     }
                 }
             }
