@@ -12,49 +12,24 @@ public class DynamicServer {
 
     public static void main(String[] args) {
         try {
-
-            // Структура для динамической обработки ресурсов
             Map<String, IResourceHandler> resources = new HashMap<>();
 
-            resources.put("/home", new HomeResourceHandler());
-            resources.put("/cat", new CatResourceHandler());
-            resources.put("/example", new ExampleResourceHandler());
+            resources.put("home", new HomeResourceHandler());
+            resources.put("cat", new CatResourceHandler());
+            resources.put("example", new ExampleResourceHandler());
 
             ServerSocket server = new ServerSocket(SERVER_PORT);
-            // wait client connection
-            //System.out.println("accept");
             System.out.println("start server");
 
             Socket clientSocket = server.accept();
+            Map<String, String> params = getParams(clientSocket);
 
-            InputStream inputStream = clientSocket.getInputStream();
-            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
-            String headerLine = bufferedReader.readLine();
+            String uri = params.get("uri").substring(1);
+            String httpVersion = params.get("httpVersion");
 
-            String[] firstLine = headerLine.split("\\s+");
 
-            String method = firstLine[0];
-            String uri = firstLine[1];
-            String httpVersion = firstLine[2];
-            Map<String, String> params = new HashMap<>();
-
-            params.put("method", method);
-            params.put("uri", uri);
-            params.put("httpVersion", httpVersion);
-
-            while (!headerLine.isEmpty()) {
-                headerLine = bufferedReader.readLine();
-                String[] param = headerLine.split(":");
-                params.put(param[0], param.length > 1 ? param[1] : "");
-            }
             if (!httpVersion.equals("HTTP/1.1")) {
-                String[] response = {"HTTP/1.1 505 HTTP Version Not Supported\r\n","Server: NewSuperServer\r\n","\r\n"};
-
-                for (String responseHeaderLine : response) {
-                    clientSocket.getOutputStream().write(responseHeaderLine.getBytes());
-                    clientSocket.getOutputStream().flush();
-                }
-                clientSocket.close();
+                errorCode(Code.CODE505, clientSocket);
             } else {
                 ResponseContent responseContent = null;
                 IResourceHandler handler = resources.get(uri);
@@ -62,12 +37,12 @@ public class DynamicServer {
                 if (handler != null) {
                     responseContent = handler.handle(params);
                 } else {
-                    responseContent = findFile(clientSocket, uri.substring(1));
+                    responseContent = findFile(uri);
                 }
                 if (responseContent != null) {
                     success(responseContent, clientSocket);
                 } else {
-                    code404(clientSocket);
+                    errorCode(Code.CODE404, clientSocket);
                 }
                 server.close();
             }
@@ -75,15 +50,16 @@ public class DynamicServer {
             throw new RuntimeException(e);
         }
     }
-    public static ResponseContent findFile(Socket clientSocket, String uri) throws IOException {
+    public static ResponseContent findFile(String uri) throws IOException {
         File file = new File(ROOT_DIRECTORY + uri);
+        if (!file.exists()) return null;
+
         byte[] buffer = Files.readAllBytes(file.toPath());
         String mimeType = URLConnection.guessContentTypeFromName(file.getName());
         return new ResponseContent(mimeType, buffer);
     }
-    public static void code404(Socket clientSocket) throws IOException {
-        String[] response = {"HTTP/1.1 404 Not Found\r\n", "Server: NewSuperServer\r\n", "\r\n"};
-
+    public static void errorCode(Code code, Socket clientSocket) throws IOException {
+        String[] response = {"HTTP/1.1 " + code + "\r\n", "Server: NewSuperServer\r\n", "\r\n"};
         for (String responseHeaderLine : response) {
             clientSocket.getOutputStream().write(responseHeaderLine.getBytes());
             clientSocket.getOutputStream().flush();
@@ -107,5 +83,41 @@ public class DynamicServer {
         clientSocket.getOutputStream().write(responseContent.getContent());
         clientSocket.getOutputStream().flush();
         clientSocket.close();
+    }
+    public static Map<String, String> getParams(Socket clientSocket) throws IOException {
+        Map<String, String> params = new HashMap<>();
+
+        BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+
+        String headerLine = bufferedReader.readLine();
+        String[] firstLine = headerLine.split("\\s+");
+
+        String method = firstLine[0];
+        String uri = firstLine[1];
+        String httpVersion = firstLine[2];
+
+        params.put("method", method);
+        params.put("uri", uri);
+        params.put("httpVersion", httpVersion);
+
+        while (!headerLine.isEmpty()) {
+            headerLine = bufferedReader.readLine();
+            String[] param = headerLine.split(":");
+            params.put(param[0], param.length > 1 ? param[1] : "");
+        }
+
+        return params;
+    }
+    private enum Code {
+        CODE404, CODE500, CODE505;
+
+        @Override
+        public String toString() {
+            return switch (this) {
+                case CODE404 -> "404 Not Found";
+                case CODE505 -> "505 HTTP Version Not Supported";
+                default -> "500 Internal Server Error";
+            };
+        }
     }
 }

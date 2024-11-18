@@ -16,7 +16,6 @@ public class ExampleResourceHandler implements IResourceHandler {
         } catch (IOException e) {
             return null;
         }
-
         return responseContent;
     }
 }
