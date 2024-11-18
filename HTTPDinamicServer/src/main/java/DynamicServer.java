@@ -6,7 +6,7 @@ import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 
-public class DinamicServer {
+public class DynamicServer {
     public static final int SERVER_PORT = 5000;
     public static final String ROOT_DIRECTORY = "docs/";
 
